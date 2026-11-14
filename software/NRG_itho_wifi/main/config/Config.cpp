@@ -1,4 +1,5 @@
 #include "config/Config.h"
+#include "config/ScheduleConfig.h"
 
 template <typename TRef>
 bool saveConfigFile(const char *location, const char *filename, size_t size, const char *config_type, TRef &ref)
@@ -189,6 +190,16 @@ bool resetHADiscConfig()
   return res;
 }
 
+bool loadScheduleConfig(const char *location)
+{
+  return loadConfigFile(location, "useschedconfb", "/schedule.json", 2048, "scheduleconfig", scheduleConfig);
+}
+
+bool saveScheduleConfig(const char *location)
+{
+  return saveConfigFile(location, "/schedule.json", 2048, "scheduleconfig", scheduleConfig);
+}
+
 bool saveSystemConfigs()
 {
   bool res = false;
@@ -197,6 +208,7 @@ bool saveSystemConfigs()
   res = saveHADiscConfig("flash");
   res = saveRemotesConfig("flash");
   res = saveVirtualRemotesConfig("flash");
+  res = saveScheduleConfig("flash");
   return res;
 }
 
@@ -208,6 +220,7 @@ bool resetSystemConfigs()
   res = resetConfigFile("/hadisc.json");
   res = resetConfigFile("/remotes.json");
   res = resetConfigFile("/vremotes.json");
+  resetConfigFile("/schedule.json");
   return res;
 }
 

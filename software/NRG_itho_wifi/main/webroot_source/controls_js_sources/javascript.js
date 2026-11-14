@@ -635,6 +635,9 @@ const messageHandlers = {
       wizardAutoConfigRFRemote();
     }
   },
+  schedulesettings: function (f) {
+    if (typeof scheduleOnSettings === 'function') scheduleOnSettings(f.schedulesettings);
+  },
   vremotes: function (f) {
     var tbl = $id('vremotesTable');
     if (!tbl) return;
@@ -1984,6 +1987,7 @@ function update_page(page) {
   if (page == 'remotes') { main.insertAdjacentHTML('beforeend', html_remotessetup); }
   if (page == 'rfstatus') { main.insertAdjacentHTML('beforeend', html_rfstatus); }
   if (page == 'vremotes') { main.insertAdjacentHTML('beforeend', html_vremotessetup); }
+  if (page == 'schedule') { main.insertAdjacentHTML('beforeend', html_schedule); }
   if (page == 'mqtt') { main.insertAdjacentHTML('beforeend', html_mqttsetup); }
   if (page == 'api') { main.insertAdjacentHTML('beforeend', html_api); }
   if (page == 'swagger') { main.insertAdjacentHTML('beforeend', html_swagger); main.style.maxWidth = '1600px'; }

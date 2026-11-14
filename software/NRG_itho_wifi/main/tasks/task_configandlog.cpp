@@ -10,6 +10,7 @@ uint32_t TaskConfigAndLogHWmark = 0;
 volatile bool saveRemotesflag = false;
 volatile bool saveVremotesflag = false;
 volatile bool saveRFTrackedConfigflag = false;
+volatile bool saveScheduleConfigflag = false;
 bool chkpartition = false;
 int chk_partition_res = -1;
 bool formatFileSystem = false;
@@ -75,6 +76,8 @@ void TaskConfigAndLog(void *pvParameters)
   syslogQueueWorker();
 
   HADiscConfigLoaded = loadHADiscConfig("flash");
+
+  ScheduleConfigLoaded = loadScheduleConfig("flash");
 
   loadRFTrackedSources();
 
@@ -165,6 +168,7 @@ void execLogAndConfigTasks()
 
     if (saveWifiConfig("flash"))
     {
+      configureSystemTime();
 
       if (reconnect)
       {
@@ -201,6 +205,18 @@ void execLogAndConfigTasks()
       saveVirtualRemotesConfig("flash");
       jsonWsSend("vremotes"); });
     logMessagejson("Virtual remotes config saved", WEBINTERFACE);
+  }
+  if (saveScheduleConfigflag && ScheduleConfigLoaded)
+  {
+    saveScheduleConfigflag = false;
+    if (saveScheduleConfig("flash"))
+    {
+      logMessagejson("Fan schedule saved", WEBINTERFACE);
+    }
+    else
+    {
+      logMessagejson("Failed saving fan schedule: Unable to write config file", WEBINTERFACE);
+    }
   }
   if (saveRFTrackedConfigflag)
   {

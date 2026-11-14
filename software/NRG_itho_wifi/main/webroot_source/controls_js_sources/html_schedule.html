@@ -1,0 +1,361 @@
+<div class="header">
+  <h1>Fan schedule</h1>
+</div>
+<style>
+  .pure-form-aligned .pure-control-group label {
+    width: 12em;
+  }
+
+  #sched_wrap {
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  #sched_grid {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 100%;
+    min-width: 900px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  #sched_grid th {
+    font-weight: normal;
+    font-size: 0.75em;
+    color: #666;
+    padding: 2px 0;
+    text-align: left;
+    border-left: 1px solid #bbb;
+    padding-left: 2px;
+  }
+
+  #sched_grid th.sched_day {
+    width: 6em;
+    border-left: none;
+    font-size: 0.9em;
+    color: #333;
+    cursor: pointer;
+    padding-right: 6px;
+    text-align: right;
+  }
+
+  #sched_grid th.sched_day:hover {
+    text-decoration: underline;
+  }
+
+  #sched_grid td {
+    height: 28px;
+    padding: 0;
+    border: 1px solid #fff;
+    cursor: crosshair;
+  }
+
+  #sched_grid td.sched_hour {
+    border-left: 1px solid #999;
+  }
+
+  #sched_grid td.sched_now {
+    outline: 3px solid #1f8dd6;
+    outline-offset: -3px;
+  }
+
+  .sched_l0 {
+    background: #e6e6e6;
+  }
+
+  .sched_l1 {
+    background: #4caf50;
+  }
+
+  .sched_l2 {
+    background: #ff9800;
+  }
+
+  .sched_l3 {
+    background: #e53935;
+  }
+
+  .sched_brush {
+    display: inline-block;
+    margin: 0 6px 6px 0;
+    padding: 6px 12px;
+    border: 3px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #fff;
+    font-weight: bold;
+    min-width: 5em;
+    text-align: center;
+  }
+
+  .sched_brush.sched_l0 {
+    color: #333;
+  }
+
+  .sched_brush.selected {
+    border-color: #1f8dd6;
+    box-shadow: 0 0 0 2px #fff inset;
+  }
+
+  #sched_dirty {
+    color: #c00;
+    margin-left: 1em;
+  }
+</style>
+<p>Set a weekly schedule for the fan speed. Select a speed below and click or drag over the grid to paint the time
+  slots (30 minutes per cell). Click a day name to fill the whole day.</p>
+<p>The schedule only sends a speed command when the scheduled speed changes. A speed selected in between with a remote
+  (or the API / web interface) stays active until its timer expires or until the next change in the schedule. Slots
+  set to <i>No change</i> leave the fan as it is.</p>
+<div id="sched_timewarn" class="hidden"
+  style="padding:8px;background:#fff3cd;border:1px solid #ffe08a;border-radius:4px;margin-bottom:1em;">
+  The device time is not synchronised yet; the schedule is paused until it is. Check the NTP server and timezone
+  in <a href="wifisetup" onclick="event.preventDefault();$q('a[href=&quot;wifisetup&quot;]').click();">WiFi
+    setup</a>.
+</div>
+<form class="pure-form pure-form-aligned" onsubmit="return false;">
+  <fieldset>
+    <div class="pure-control-group">
+      <label for="option-schedule_enabled" class="pure-radio">Schedule active</label>
+      <input id="option-schedule_enabled-1" type="radio" name="option-schedule_enabled" value="1"
+        onchange="schedMarkDirty()"> on
+      <input id="option-schedule_enabled-0" type="radio" name="option-schedule_enabled" value="0"
+        onchange="schedMarkDirty()"> off
+    </div>
+    <div class="pure-control-group">
+      <label>Device time</label>
+      <span id="sched_localtime">-</span>
+    </div>
+    <div style="margin:1em 0 0.5em 0;border-bottom:1px solid #e5e5e5;padding-bottom:0.3em;">Speed:</div>
+    <div id="sched_brushes">
+      <span class="sched_brush sched_l3" data-level="3">High</span>
+      <span class="sched_brush sched_l2" data-level="2">Medium</span>
+      <span class="sched_brush sched_l1 selected" data-level="1">Low</span>
+      <span class="sched_brush sched_l0" data-level="0">No change</span>
+    </div>
+    <br>
+    <div id="sched_wrap">
+      <table id="sched_grid"></table>
+    </div>
+    <br>
+    <div>
+      Copy
+      <select id="sched_copy_from"></select>
+      to
+      <select id="sched_copy_to"></select>
+      <button id="sched_copy" class="pure-button" type="button">Copy</button>
+      &nbsp;
+      <button id="sched_clear" class="pure-button" type="button">Clear all</button>
+    </div>
+    <br>
+    <div>
+      <button id="sched_save" class="pure-button pure-button-primary" type="button">Save</button>
+      <button id="sched_revert" class="pure-button" type="button">Revert</button>
+      <span id="sched_dirty" class="hidden">Unsaved changes</span>
+    </div>
+  </fieldset>
+</form>
+<script>
+  $id('main').style.maxWidth = '1400px';
+  var schedDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var schedDays = [];
+  var schedBrush = 1;
+  var schedPainting = false;
+  var schedLast = null;
+  var schedDirty = false;
+
+  function schedEmptyDay() { return '0'.repeat(48); }
+
+  function schedSlotLabel(s) {
+    function t(x) { var h = Math.floor(x / 2), m = (x % 2) ? '30' : '00'; return (h < 10 ? '0' : '') + h + ':' + m; }
+    return t(s) + '-' + (s == 47 ? '24:00' : t(s + 1));
+  }
+
+  function schedBuildGrid() {
+    var tbl = $id('sched_grid');
+    var html = '<thead><tr><th class="sched_day"></th>';
+    for (var h = 0; h < 24; h++) html += '<th colspan="2">' + (h < 10 ? '0' : '') + h + '</th>';
+    html += '</tr></thead><tbody>';
+    for (var d = 0; d < 7; d++) {
+      html += '<tr><th class="sched_day" data-day="' + d + '" title="Fill ' + schedDayNames[d] + ' with selected speed">' + schedDayNames[d] + '</th>';
+      for (var s = 0; s < 48; s++) {
+        html += '<td id="sc-' + d + '-' + s + '" data-d="' + d + '" data-s="' + s + '"' + (s % 2 == 0 ? ' class="sched_hour"' : '') +
+          ' title="' + schedDayNames[d] + ' ' + schedSlotLabel(s) + '"></td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody>';
+    tbl.innerHTML = html;
+
+    var from = $id('sched_copy_from'), to = $id('sched_copy_to');
+    var opts = '';
+    for (var i = 0; i < 7; i++) opts += '<option value="' + i + '">' + schedDayNames[i] + '</option>';
+    from.innerHTML = opts;
+    to.innerHTML = opts + '<option value="wd">Weekdays (Mon-Fri)</option><option value="we">Weekend (Sat-Sun)</option><option value="all">All days</option>';
+    to.value = 'wd';
+  }
+
+  function schedRenderCell(d, s) {
+    var td = $id('sc-' + d + '-' + s);
+    if (!td) return;
+    var lvl = schedDays[d].charAt(s);
+    td.classList.remove('sched_l0', 'sched_l1', 'sched_l2', 'sched_l3');
+    td.classList.add('sched_l' + lvl);
+  }
+
+  function schedRenderAll() {
+    for (var d = 0; d < 7; d++)
+      for (var s = 0; s < 48; s++) schedRenderCell(d, s);
+  }
+
+  function schedSetSlot(d, s, lvl) {
+    var str = schedDays[d];
+    if (str.charAt(s) == String(lvl)) return;
+    schedDays[d] = str.substring(0, s) + lvl + str.substring(s + 1);
+    schedRenderCell(d, s);
+    schedMarkDirty();
+  }
+
+  function schedMarkDirty() {
+    schedDirty = true;
+    var el = $id('sched_dirty');
+    if (el) el.classList.remove('hidden');
+  }
+
+  function schedClearDirty() {
+    schedDirty = false;
+    var el = $id('sched_dirty');
+    if (el) el.classList.add('hidden');
+  }
+
+  function schedShowStatus(st) {
+    $qa('#sched_grid td.sched_now').forEach(function (el) { el.classList.remove('sched_now'); });
+    if (!st) return;
+    var warn = $id('sched_timewarn');
+    if (warn) warn.classList.toggle('hidden', !!st.time_valid);
+    var lt = $id('sched_localtime');
+    if (lt) lt.textContent = st.time_valid ? st.localtime : 'not synchronised';
+    if (st.time_valid) {
+      var td = $id('sc-' + st.day + '-' + st.slot);
+      if (td) td.classList.add('sched_now');
+    }
+  }
+
+  // Called by the "schedulesettings" websocket message handler
+  function scheduleOnSettings(x) {
+    if (!$id('sched_grid')) return;
+    if (!schedDirty) {
+      schedDays = [];
+      for (var d = 0; d < 7; d++) {
+        var str = (x.days && typeof x.days[d] === 'string') ? x.days[d] : '';
+        str = (str + schedEmptyDay()).substring(0, 48).replace(/[^0-3]/g, '0');
+        schedDays.push(str);
+      }
+      var r = $id('option-schedule_enabled-' + (x.schedule_enabled == 1 ? '1' : '0'));
+      if (r) r.checked = true;
+      schedRenderAll();
+    }
+    schedShowStatus(x.status);
+  }
+
+  function schedCellFromPoint(x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (el && el.tagName === 'TD' && el.dataset && el.dataset.d !== undefined) return el;
+    return null;
+  }
+
+  (function () {
+    schedBuildGrid();
+    for (var d = 0; d < 7; d++) schedDays.push(schedEmptyDay());
+    schedRenderAll();
+
+    var grid = $id('sched_grid');
+    grid.addEventListener('pointerdown', function (e) {
+      var td = schedCellFromPoint(e.clientX, e.clientY);
+      if (td) {
+        schedPainting = true;
+        schedLast = [+td.dataset.d, +td.dataset.s];
+        schedSetSlot(schedLast[0], schedLast[1], schedBrush);
+        e.preventDefault();
+        return;
+      }
+      var th = e.target.closest('th.sched_day');
+      if (th && th.dataset.day !== undefined) {
+        var day = +th.dataset.day;
+        for (var s = 0; s < 48; s++) schedSetSlot(day, s, schedBrush);
+      }
+    });
+    grid.addEventListener('pointermove', function (e) {
+      if (!schedPainting) return;
+      var td = schedCellFromPoint(e.clientX, e.clientY);
+      if (!td) return;
+      var d1 = +td.dataset.d, s1 = +td.dataset.s;
+      var d0 = schedLast ? schedLast[0] : d1, s0 = schedLast ? schedLast[1] : s1;
+      // Fill every cell on the line from the previous cell, so fast drags don't leave gaps
+      var steps = Math.max(Math.abs(d1 - d0), Math.abs(s1 - s0), 1);
+      for (var i = 1; i <= steps; i++) {
+        schedSetSlot(Math.round(d0 + (d1 - d0) * i / steps), Math.round(s0 + (s1 - s0) * i / steps), schedBrush);
+      }
+      schedLast = [d1, s1];
+    });
+    if (!window.schedPointerHooked) {
+      window.schedPointerHooked = true;
+      var stop = function () { schedPainting = false; };
+      document.addEventListener('pointerup', stop);
+      document.addEventListener('pointercancel', stop);
+    }
+
+    $qa('#sched_brushes .sched_brush').forEach(function (b) {
+      b.addEventListener('click', function () {
+        $qa('#sched_brushes .sched_brush').forEach(function (o) { o.classList.remove('selected'); });
+        b.classList.add('selected');
+        schedBrush = +b.dataset.level;
+      });
+    });
+
+    $id('sched_copy').addEventListener('click', function () {
+      var from = +$id('sched_copy_from').value;
+      var to = $id('sched_copy_to').value;
+      var targets = to === 'wd' ? [0, 1, 2, 3, 4] : to === 'we' ? [5, 6] : to === 'all' ? [0, 1, 2, 3, 4, 5, 6] : [+to];
+      targets.forEach(function (t) {
+        if (t === from) return;
+        schedDays[t] = schedDays[from];
+      });
+      schedRenderAll();
+      schedMarkDirty();
+    });
+
+    $id('sched_clear').addEventListener('click', function () {
+      if (!confirm('Clear the whole schedule?')) return;
+      for (var d = 0; d < 7; d++) schedDays[d] = schedEmptyDay();
+      schedRenderAll();
+      schedMarkDirty();
+    });
+
+    $id('sched_save').addEventListener('click', function () {
+      var en = $q('input[name="option-schedule_enabled"]:checked');
+      schedClearDirty();
+      websock_send(JSON.stringify({
+        schedulesettings: {
+          schedule_enabled: (en && en.value == '1') ? 1 : 0,
+          days: schedDays
+        }
+      }));
+    });
+
+    $id('sched_revert').addEventListener('click', function () {
+      schedClearDirty();
+      getSettings('schedulesetup');
+    });
+
+    getSettings('schedulesetup');
+    // Refresh the "now" marker / device time every 30 seconds while this page is open
+    if (window.schedStatusTimer) clearInterval(window.schedStatusTimer);
+    window.schedStatusTimer = setInterval(function () {
+      if (!$id('sched_grid')) { clearInterval(window.schedStatusTimer); window.schedStatusTimer = null; return; }
+      getSettings('schedulesetup');
+    }, 30000);
+  })();
+</script>

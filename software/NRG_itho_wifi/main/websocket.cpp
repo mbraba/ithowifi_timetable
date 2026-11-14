@@ -1,5 +1,8 @@
 #include "websocket.h"
 #include "managers/SecureWebCommLite.h"
+#include "managers/ScheduleManager.h"
+#include "config/ScheduleConfig.h"
+#include "tasks/task_configandlog.h"
 
 static std::unordered_map<uint32_t, std::string> g_wsBuffers;
 static SemaphoreHandle_t g_wsBuffersMutex = xSemaphoreCreateMutex();
@@ -146,6 +149,13 @@ void jsonWsSend(const char *rootName)
   {
     JsonObject nested = root[rootName].to<JsonObject>();
     haDiscConfig.get(nested);
+  }
+  else if (strcmp(rootName, "schedulesettings") == 0)
+  {
+    JsonObject nested = root[rootName].to<JsonObject>();
+    scheduleConfig.get(nested);
+    JsonObject status = nested["status"].to<JsonObject>();
+    scheduleManager.getStatus(status);
   }
   else if (strcmp(rootName, "debuginfo") == 0)
   {
@@ -356,6 +366,24 @@ void handle_ws_message(JsonObject root)
     {
       E_LOG("SYS: error - hadiscsettings: set config failed");
     }
+  }
+
+  if (root["schedulesettings"].is<JsonObject>())
+  {
+    if (scheduleConfig.set(root["schedulesettings"].as<JsonObject>()))
+    {
+      saveScheduleConfigflag = true;
+      scheduleManager.requestApply();
+      jsonWsSend("schedulesettings");
+    }
+    else
+    {
+      E_LOG("SYS: error - schedulesettings: set config failed");
+    }
+  }
+  if (root["schedulesetup"].is<bool>() && root["schedulesetup"].as<bool>())
+  {
+    jsonWsSend("schedulesettings");
   }
 
   // ---------- "button" (string) ----------

@@ -28,6 +28,7 @@ const std::map<cmdOrigin, const char *> cmdOriginMap = {
     {cmdOrigin::MQTTAPI, "MQTT API"},
     {cmdOrigin::REMOTE, "remote"},
     {cmdOrigin::WEB, "web interface"},
+    {cmdOrigin::SCHEDULE, "schedule"},
     {cmdOrigin::UNKNOWN, "unknown"}};
 
 const struct ihtoDeviceType ithoDevices[]{

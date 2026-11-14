@@ -3,6 +3,7 @@
 #include "tasks/task_syscontrol.h"
 #include "../sys_log.h"
 #include "generic_functions.h"
+#include "managers/ScheduleManager.h"
 
 #define TASK_SYS_CONTROL_PRIO 6
 // globals
@@ -116,6 +117,10 @@ void execSystemControlTasks()
   }
 
   i2cManager.processQueue();
+
+  // Weekly fan schedule (waits until the I2C / RF init sequence is done)
+  if (i2c_init_functions_done)
+    scheduleManager.loop();
 
   if (systemConfig.itho_rf_standalone == 1)
   {

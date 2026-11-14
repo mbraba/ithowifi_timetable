@@ -23,6 +23,9 @@ void wifiInit()
     I_LOG("SYS: starting wifi access point");
     setupWiFiAP();
   }
+
+  configureSystemTime();
+
   if (strcmp(wifiConfig.ssid, "") != 0)
   {
     connectWiFiSTA();
@@ -32,24 +35,37 @@ void wifiInit()
     I_LOG("SYS: initial wifi config still there");
   }
 
-  if (strcmp(wifiConfig.ntpserver, "") != 0)
+  WiFi.scanDelete();
+  if (WiFi.scanComplete() == -2)
   {
-    configTime(0, 0, wifiConfig.ntpserver);
+    WiFi.scanNetworks(true);
   }
+}
 
-  // set timezone
-
+void configureSystemTime()
+{
   const char *tz_string = wifiConfig.getTimeZoneStr();
 
   N_LOG("SYS: timezone: %s, specifier %s ", wifiConfig.timezone, tz_string);
   setenv("TZ", tz_string, 1);
   tzset();
 
-  WiFi.scanDelete();
-  if (WiFi.scanComplete() == -2)
+  if (wifiConfig.ntpserver[0] == '\0')
   {
-    WiFi.scanNetworks(true);
+    I_LOG("SYS: NTP server is not configured");
+    return;
   }
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    I_LOG("SYS: NTP sync will start when WiFi connects");
+    return;
+  }
+
+  // Note: do not use configTime(0, 0, ...) here; it overwrites TZ with "UTC0".
+  // configTzTime starts SNTP and (re)applies the configured local timezone.
+  configTzTime(tz_string, wifiConfig.ntpserver);
+  N_LOG("SYS: requested time synchronization from NTP server %s", wifiConfig.ntpserver);
 }
 
 void WiFiEvent(WiFiEvent_t event, arduino_event_info_t info)
@@ -118,6 +134,7 @@ void WiFiEvent(WiFiEvent_t event, arduino_event_info_t info)
   {
     wifiSTAconnected = true;
     logWifiInfo();
+    configureSystemTime();
     strlcpy(buf, "WiFi client got IP", sizeof(buf));
     break;
   }

@@ -26,6 +26,8 @@ bool resetLogConfig();
 bool loadHADiscConfig(const char *location);
 bool saveHADiscConfig(const char *location);
 bool resetHADiscConfig();
+bool loadScheduleConfig(const char *location);
+bool saveScheduleConfig(const char *location);
 
 template <typename TDst>
 uint16_t serializeRemotes(const char *filename, const IthoRemote &remotes, TDst &dst);

@@ -12,6 +12,7 @@ extern DNSServer dnsServer;
 
 // WiFi functions (moved from task_syscontrol.h)
 void wifiInit();
+void configureSystemTime();
 void WiFiEvent(WiFiEvent_t event, arduino_event_info_t info);
 void setupWiFigeneric();
 void setupWiFiAP();

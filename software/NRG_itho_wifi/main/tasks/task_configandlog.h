@@ -18,6 +18,7 @@
 #include "config/Config.h"
 #include "config/LogConfig.h"
 #include "config/HADiscConfig.h"
+#include "config/ScheduleConfig.h"
 #include "esp32_repartition.h"
 
 // #include "LittleFS.h"
@@ -30,6 +31,7 @@ extern uint32_t TaskConfigAndLogHWmark;
 extern volatile bool saveRemotesflag;
 extern volatile bool saveVremotesflag;
 extern volatile bool saveRFTrackedConfigflag;
+extern volatile bool saveScheduleConfigflag;
 extern bool chkpartition;
 extern int chk_partition_res;
 extern bool formatFileSystem;
@@ -42,6 +44,7 @@ inline bool WifiConfigLoaded = false;
 inline bool SystemConfigLoaded = false;
 inline bool logConfigLoaded = false;
 inline bool HADiscConfigLoaded = false;
+inline bool ScheduleConfigLoaded = false;
 inline bool saveAllConfigsflag = false;
 
 void startTaskConfigAndLog();
